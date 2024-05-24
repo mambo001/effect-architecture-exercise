@@ -1,0 +1,56 @@
+{
+  "name": "todo-app",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/todo-app/src",
+  "projectType": "application",
+  "tags": [],
+  "targets": {
+    "build": {
+      "executor": "@nx/esbuild:esbuild",
+      "outputs": ["{options.outputPath}"],
+      "defaultConfiguration": "production",
+      "options": {
+        "platform": "node",
+        "outputPath": "dist/apps/todo-app",
+        "format": ["cjs"],
+        "bundle": false,
+        "main": "apps/todo-app/src/main.ts",
+        "tsConfig": "apps/todo-app/tsconfig.app.json",
+        "assets": ["apps/todo-app/src/assets"],
+        "generatePackageJson": true,
+        "esbuildOptions": {
+          "sourcemap": true,
+          "outExtension": {
+            ".js": ".js"
+          }
+        }
+      },
+      "configurations": {
+        "development": {},
+        "production": {
+          "esbuildOptions": {
+            "sourcemap": false,
+            "outExtension": {
+              ".js": ".js"
+            }
+          }
+        }
+      }
+    },
+    "serve": {
+      "executor": "@nx/js:node",
+      "defaultConfiguration": "development",
+      "options": {
+        "buildTarget": "todo-app:build"
+      },
+      "configurations": {
+        "development": {
+          "buildTarget": "todo-app:build:development"
+        },
+        "production": {
+          "buildTarget": "todo-app:build:production"
+        }
+      }
+    }
+  }
+}
