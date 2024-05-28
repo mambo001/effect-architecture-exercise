@@ -6,6 +6,9 @@
   "private": true,
   "dependencies": {
     "axios": "^1.6.0",
+    "effect": "^3.2.5",
+    "effect-http": "^0.67.2",
+    "effect-http-node": "^0.13.3",
     "tslib": "^2.3.0"
   },
   "devDependencies": {
