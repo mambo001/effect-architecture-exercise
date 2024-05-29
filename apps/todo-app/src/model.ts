@@ -44,3 +44,42 @@ export const MarkTodoDoneResponse = Schema.Struct({
 export const MarkTodoDoneRequestPath = Schema.Struct({
   todoId: Schema.String,
 });
+
+export class User extends Data.Class<{
+  id: string;
+  name: string;
+  assignedTodos: string[];
+}> {}
+
+export const UserSchema = Schema.Struct({
+  id: Schema.String,
+  name: Schema.String,
+  assignedTodos: Schema.Array(Schema.String),
+});
+
+export const CreateUserRequest = Schema.Struct({ name: Schema.String });
+
+export const CreateUserResponse = Schema.Struct({
+  message: Schema.String,
+  user: Schema.Struct({
+    id: Schema.String,
+    name: Schema.String,
+  }),
+});
+
+export const LookupUserPath = Schema.Struct({ userId: Schema.String });
+
+export const LookupUserResponse = Schema.Struct({ user: UserSchema });
+
+export const ListUsersResponse = Schema.Struct({
+  users: Schema.Array(UserSchema),
+});
+
+export const AssignTodoPath = Schema.Struct({
+  todoId: Schema.String,
+  userId: Schema.String,
+});
+
+export const AssignTodoResponse = Schema.Struct({
+  message: Schema.String,
+});

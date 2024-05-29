@@ -2,8 +2,8 @@ import { Config, ConfigProvider, Context, Effect } from 'effect';
 import { NodeServer } from 'effect-http-node';
 import { Middlewares, RouterBuilder, HttpError } from 'effect-http';
 
-import { ApiRoutes, markDoneTodo } from '../api';
-import { Todo } from '../model';
+import { ApiRoutes } from '../api';
+import { Todo, User } from '../model';
 import {
   lookupTodo,
   listTodos,
@@ -13,6 +13,10 @@ import {
   TimestampGeneratorLive,
   generateId,
   generateTimestamp,
+  StubUserPersistence,
+  saveUser,
+  lookupUser,
+  listUsers,
 } from '../services';
 import { someOrFail } from '../lib/common';
 
@@ -36,7 +40,7 @@ const ApiApp = ApiRoutes.pipe(
       const id = yield* _(generateId);
       const timestamp = yield* _(generateTimestamp);
       const todo = new Todo({
-        id,
+        id: `todo-${id}`,
         timestamp,
         title: body.title,
         isDone: false,
@@ -79,6 +83,75 @@ const ApiApp = ApiRoutes.pipe(
       yield* _(saveTodo(updatedTodo));
       return {
         message: 'Todo marked as done',
+      };
+    })
+  ),
+  RouterBuilder.handle('createUser', ({ body }) =>
+    Effect.gen(function* (_) {
+      const id = yield* _(generateId);
+      const user = new User({
+        id: `user-${id}`,
+        name: body.name,
+        assignedTodos: [],
+      });
+      yield* _(saveUser(user));
+      return {
+        user,
+        message: 'User created',
+      };
+    })
+  ),
+  RouterBuilder.handle('lookupUser', ({ path }) =>
+    lookupUser(path.userId).pipe(
+      someOrFail(() =>
+        HttpError.notFoundError({
+          message: 'User not found',
+        })
+      ),
+      Effect.map((user) => ({ user: new User(user) }))
+    )
+  ),
+  RouterBuilder.handle('listUsers', () =>
+    listUsers.pipe(Effect.map((users) => ({ users })))
+  ),
+  RouterBuilder.handle('assignTodo', ({ body }) =>
+    Effect.gen(function* (_) {
+      const todo = yield* _(
+        lookupTodo(body.todoId).pipe(
+          someOrFail(() =>
+            HttpError.notFoundError({
+              message: 'Todo not found',
+            })
+          )
+        )
+      );
+      const user = yield* _(
+        lookupUser(body.userId).pipe(
+          someOrFail(() =>
+            HttpError.notFoundError({
+              message: 'User not found',
+            })
+          )
+        )
+      );
+      yield* _(
+        saveTodo(
+          new Todo({
+            ...todo,
+            isDone: true,
+          })
+        )
+      );
+      yield* _(
+        saveUser(
+          new User({
+            ...user,
+            assignedTodos: [...user.assignedTodos, todo.id],
+          })
+        )
+      );
+      return {
+        message: 'Todo assigned to user',
       };
     })
   ),
@@ -126,6 +199,25 @@ export const main: Main = ConfigProvider.fromEnv()
               timestamp: new Date(),
               title: 'Third todo',
               isDone: false,
+            },
+          })
+        ),
+        Effect.provide(
+          StubUserPersistence({
+            '1': {
+              id: '1',
+              name: 'User 1',
+              assignedTodos: [''],
+            },
+            '2': {
+              id: '2',
+              name: 'User 2',
+              assignedTodos: [''],
+            },
+            '3': {
+              id: '3',
+              name: 'User 3',
+              assignedTodos: [''],
             },
           })
         ),
