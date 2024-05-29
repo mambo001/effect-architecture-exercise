@@ -1,4 +1,5 @@
 import { Context, Data, Effect, Layer, Option } from 'effect';
+import ShortUniqueId from 'short-unique-id';
 
 import { ParseResult } from '@effect/schema';
 
@@ -47,17 +48,36 @@ export interface TimestampGenerator {
   generate: Effect.Effect<Date>;
 }
 
+function makeId(): IdGenerator {
+  const id = new ShortUniqueId({ length: 6 });
+  return {
+    generate: Effect.sync(() => id.randomUUID(10)),
+  };
+}
+
+export const ShortUniqueIdGeneratorLive = Layer.sync(IdGenerator, makeId);
+
 export const TimestampGenerator = Context.GenericTag<TimestampGenerator>(
   'core/services/timestamp-generator'
 );
 export const { generate: generateTimestamp } =
   Effect.serviceConstants(TimestampGenerator);
+export function makeTimestamp(): TimestampGenerator {
+  return {
+    generate: Effect.sync(() => new Date()),
+  };
+}
+export const TimestampGeneratorLive = Layer.sync(
+  TimestampGenerator,
+  makeTimestamp
+);
 
 export const StubTodoPersistence = (todos: Record<string, Todo>) =>
   Layer.sync(TodoPersistence, () => ({
     save: (todo) =>
       Effect.succeed(() => {
         todos[todo.id] = todo;
+        return todo;
       }),
     lookup: (todoId) =>
       Effect.succeed(Option.fromNullable(todos[String(todoId)])),

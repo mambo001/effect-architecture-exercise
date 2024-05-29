@@ -1,14 +1,20 @@
-import { Config, ConfigProvider, Context, Effect, flow, pipe } from 'effect';
+import { Config, ConfigProvider, Context, Effect } from 'effect';
+import { Schema } from '@effect/schema';
 import { NodeServer } from 'effect-http-node';
-import { ApiGroup, Middlewares, RouterBuilder, HttpError } from 'effect-http';
+import { Middlewares, RouterBuilder, HttpError } from 'effect-http';
 
-import { ApiRoutes, LookupTodoResponse } from '../api';
+import { ApiRoutes } from '../api';
 import { Todo } from '../model';
 import {
-  TodoPersistenceError,
   lookupTodo,
   listTodos,
   StubTodoPersistence,
+  saveTodo,
+  TimestampGenerator,
+  ShortUniqueIdGeneratorLive,
+  TimestampGeneratorLive,
+  generateId,
+  generateTimestamp,
 } from '../services';
 import { someOrFail } from '../lib/common';
 
@@ -27,9 +33,29 @@ const AppConfig = Context.GenericTag<AppConfig>('app-config');
 
 const ApiApp = ApiRoutes.pipe(
   RouterBuilder.make,
+  RouterBuilder.handle('createTodo', ({ body }) =>
+    Effect.gen(function* (_) {
+      const id = yield* _(generateId);
+      const timestamp = yield* _(generateTimestamp);
+      const todo = new Todo({
+        id,
+        timestamp,
+        title: body.title,
+      });
+      yield* _(saveTodo(todo));
+      return {
+        todo,
+        message: 'Todo created',
+      };
+    })
+  ),
   RouterBuilder.handle('lookupTodo', ({ path }) =>
     lookupTodo(path.todoId).pipe(
-      someOrFail(() => HttpError.notFoundError({})),
+      someOrFail(() =>
+        HttpError.notFoundError({
+          message: 'Todo not found',
+        })
+      ),
       Effect.map((todo) => ({ todo: new Todo(todo) }))
     )
   ),
@@ -80,6 +106,8 @@ export const main: Main = ConfigProvider.fromEnv()
             },
           })
         ),
+        Effect.provide(ShortUniqueIdGeneratorLive),
+        Effect.provide(TimestampGeneratorLive),
         Effect.provideService(AppConfig, config)
       )
     )
