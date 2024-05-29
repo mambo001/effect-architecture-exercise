@@ -1,16 +1,14 @@
 import { Config, ConfigProvider, Context, Effect } from 'effect';
-import { Schema } from '@effect/schema';
 import { NodeServer } from 'effect-http-node';
 import { Middlewares, RouterBuilder, HttpError } from 'effect-http';
 
-import { ApiRoutes } from '../api';
+import { ApiRoutes, markDoneTodo } from '../api';
 import { Todo } from '../model';
 import {
   lookupTodo,
   listTodos,
   StubTodoPersistence,
   saveTodo,
-  TimestampGenerator,
   ShortUniqueIdGeneratorLive,
   TimestampGeneratorLive,
   generateId,
@@ -41,6 +39,7 @@ const ApiApp = ApiRoutes.pipe(
         id,
         timestamp,
         title: body.title,
+        isDone: false,
       });
       yield* _(saveTodo(todo));
       return {
@@ -61,6 +60,27 @@ const ApiApp = ApiRoutes.pipe(
   ),
   RouterBuilder.handle('listTodo', () =>
     listTodos.pipe(Effect.map((todos) => ({ todos })))
+  ),
+  RouterBuilder.handle('markDoneTodo', ({ body }) =>
+    Effect.gen(function* (_) {
+      const todo = yield* _(
+        lookupTodo(body.todoId).pipe(
+          someOrFail(() =>
+            HttpError.notFoundError({
+              message: 'Todo not found',
+            })
+          )
+        )
+      );
+      const updatedTodo = new Todo({
+        ...todo,
+        isDone: true,
+      });
+      yield* _(saveTodo(updatedTodo));
+      return {
+        message: 'Todo marked as done',
+      };
+    })
   ),
   RouterBuilder.buildPartial
 );
@@ -93,16 +113,19 @@ export const main: Main = ConfigProvider.fromEnv()
               id: '1',
               timestamp: new Date(),
               title: 'First todo',
+              isDone: false,
             },
             '2': {
               id: '2',
               timestamp: new Date(),
               title: 'Second todo',
+              isDone: false,
             },
             '3': {
               id: '3',
               timestamp: new Date(),
               title: 'Third todo',
+              isDone: false,
             },
           })
         ),
