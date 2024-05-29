@@ -1,10 +1,16 @@
 import { Config, ConfigProvider, Context, Effect, flow, pipe } from 'effect';
 import { NodeServer } from 'effect-http-node';
-import { ApiGroup, Middlewares, RouterBuilder } from 'effect-http';
+import { ApiGroup, Middlewares, RouterBuilder, HttpError } from 'effect-http';
 
-import { ApiRouteBuilder, ApiRoutes, getTodo, getUser } from '../api';
-import { handleListTodosQuery } from '../lib/queries';
-import { Todo } from '../lib/domain/todo';
+import { ApiRoutes, LookupTodoResponse } from '../api';
+import { Todo } from '../model';
+import {
+  TodoPersistenceError,
+  lookupTodo,
+  listTodos,
+  StubTodoPersistence,
+} from '../services';
+import { someOrFail } from '../lib/common';
 
 const appConfig = Config.all({
   port: Config.number('PORT').pipe(Config.withDefault(3000)),
@@ -19,37 +25,18 @@ interface AppConfig extends AppConfig_ {}
 
 const AppConfig = Context.GenericTag<AppConfig>('app-config');
 
-// const handleTodoEndpoints = ApiGroup.make('Todo Group').pipe(
-//   ApiGroup.addEndpoint(getUser)
-// );
-export function handleTodoEndpoints<R, E>(builder: ApiRouteBuilder<R, E>) {
-  return builder.pipe(
-    RouterBuilder.handle('listTodo', () =>
-      handleListTodosQuery().pipe(
-        Effect.map((todos) => ({
-          todos: todos.map(
-            (todo) =>
-              new Todo({
-                id: todo.id,
-                title: todo.title,
-              })
-          ),
-        }))
-      )
-    )
-  );
-}
-
-const handleUserEndpoints = ApiGroup.make('User Group').pipe(
-  ApiGroup.addEndpoint(getTodo)
-);
-
-const handleEndpoints = flow(handleTodoEndpoints, handleUserEndpoints);
-
 const ApiApp = ApiRoutes.pipe(
   RouterBuilder.make,
-  handleEndpoints,
-  RouterBuilder.build
+  RouterBuilder.handle('lookupTodo', ({ query }) =>
+    lookupTodo(query.todoId).pipe(
+      someOrFail(() => HttpError.notFoundError({})),
+      Effect.map((todo) => ({ todo: new Todo(todo) }))
+    )
+  ),
+  RouterBuilder.handle('listTodo', () =>
+    listTodos.pipe(Effect.map((todos) => ({ todos })))
+  ),
+  RouterBuilder.buildPartial
 );
 
 const runApi = AppConfig.pipe(
@@ -59,7 +46,6 @@ const runApi = AppConfig.pipe(
         allowedOrigins: [config.allowedOrigins],
       }),
       Middlewares.errorLog,
-      //     consoleRequestLogger,
       NodeServer.listen({ port: config.port })
     )
   )
@@ -75,6 +61,25 @@ export const main: Main = ConfigProvider.fromEnv()
     Effect.flatMap((config) =>
       Effect.all(apps, { concurrency: apps.length }).pipe(
         Effect.asVoid,
+        Effect.provide(
+          StubTodoPersistence({
+            '1': {
+              id: '1',
+              timestamp: new Date(),
+              title: 'First todo',
+            },
+            '2': {
+              id: '2',
+              timestamp: new Date(),
+              title: 'Second todo',
+            },
+            '3': {
+              id: '3',
+              timestamp: new Date(),
+              title: 'Third todo',
+            },
+          })
+        ),
         Effect.provideService(AppConfig, config)
       )
     )
