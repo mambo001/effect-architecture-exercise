@@ -14,7 +14,6 @@ export const LookupTodoPath = Schema.Struct({ todoId: Schema.String });
 export const LookupTodoQuery = Schema.Struct({ todoId: Schema.String });
 export const LookupTodoResponse = Schema.Struct({ todo: Todo });
 export const lookupTodo = Api.get('lookupTodo', '/todos/:todoId').pipe(
-  Api.setRequestQuery(Schema.Struct({ todoId: Schema.NumberFromString })),
   Api.setRequestPath(LookupTodoPath),
   Api.setResponseBody(LookupTodoResponse),
   Api.setResponseStatus(StatusCodes.OK)

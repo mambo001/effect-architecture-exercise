@@ -27,8 +27,8 @@ const AppConfig = Context.GenericTag<AppConfig>('app-config');
 
 const ApiApp = ApiRoutes.pipe(
   RouterBuilder.make,
-  RouterBuilder.handle('lookupTodo', ({ query }) =>
-    lookupTodo(query.todoId).pipe(
+  RouterBuilder.handle('lookupTodo', ({ path }) =>
+    lookupTodo(path.todoId).pipe(
       someOrFail(() => HttpError.notFoundError({})),
       Effect.map((todo) => ({ todo: new Todo(todo) }))
     )
