@@ -1,20 +1,11 @@
-// TODO: define todo, user schemas
-import { Data } from 'effect';
 import { Schema } from '@effect/schema';
 
-export class Todo extends Data.Class<{
-  id: string;
-  timestamp: Date;
-  title: string;
-  isDone: boolean;
-}> {}
-
-export const TodoSchema = Schema.Struct({
+export class Todo extends Schema.Class<Todo>('Todo')({
   id: Schema.String,
-  timestamp: Schema.DateFromString,
+  timestamp: Schema.Date,
   title: Schema.String,
   isDone: Schema.Boolean,
-});
+}) {}
 
 export const CreateTodo = Schema.Struct({
   title: Schema.String,
@@ -22,19 +13,19 @@ export const CreateTodo = Schema.Struct({
 
 export const CreateTodoResponse = Schema.Struct({
   message: Schema.String,
-  todo: TodoSchema,
+  todo: Todo,
 });
 
 export const LookupTodoResponse = Schema.Struct({
-  todo: TodoSchema,
+  todo: Todo,
 });
 
 export const LookupTodoRequestPath = Schema.Struct({ todoId: Schema.String });
 
-export const LookupTodoRequestBody = Schema.Struct({ todo: TodoSchema });
+export const LookupTodoRequestBody = Schema.Struct({ todo: Todo });
 
 export const ListTodoResponse = Schema.Struct({
-  todos: Schema.Array(TodoSchema),
+  todos: Schema.Array(Todo),
 });
 
 export const MarkTodoDoneResponse = Schema.Struct({
@@ -45,17 +36,11 @@ export const MarkTodoDoneRequestPath = Schema.Struct({
   todoId: Schema.String,
 });
 
-export class User extends Data.Class<{
-  id: string;
-  name: string;
-  assignedTodos: string[];
-}> {}
-
-export const UserSchema = Schema.Struct({
+export class User extends Schema.Class<User>('User')({
   id: Schema.String,
   name: Schema.String,
   assignedTodos: Schema.Array(Schema.String),
-});
+}) {}
 
 export const CreateUserRequest = Schema.Struct({ name: Schema.String });
 
@@ -69,10 +54,10 @@ export const CreateUserResponse = Schema.Struct({
 
 export const LookupUserPath = Schema.Struct({ userId: Schema.String });
 
-export const LookupUserResponse = Schema.Struct({ user: UserSchema });
+export const LookupUserResponse = Schema.Struct({ user: User });
 
 export const ListUsersResponse = Schema.Struct({
-  users: Schema.Array(UserSchema),
+  users: Schema.Array(User),
 });
 
 export const AssignTodoPath = Schema.Struct({
