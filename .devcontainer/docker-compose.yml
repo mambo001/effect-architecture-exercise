@@ -1,0 +1,35 @@
+version: '3.8'
+services:
+  devcontainer:
+    build:
+      dockerfile: Dockerfile
+      context: .
+      target: devcontainer
+    network_mode: service:spanner-emulator
+    environment:
+      CR_HOST: $CR_HOST
+      HOST_IP: $HOST_IP
+      APP_IMAGES_HOST: $CR_HOST/$GOOGLE_CLOUD_PROJECT/app-images
+      GOOGLE_APPLICATION_CREDENTIALS: /home/vscode/.config/gcloud/$GCP_SERVICE_ACCOUNT_TOKEN
+      GOOGLE_CLOUD_PROJECT: $GOOGLE_CLOUD_PROJECT
+      SPANNER_EMULATOR_HOST: spanner-emulator:9010
+      SPANNER_INSTANCE: dev-instance
+      SPANNER_DATABASE: dev-database
+    volumes:
+      - ../..:/workspaces:cached
+      - $HOME/.ssh:/home/vscode/.ssh:cached
+      - $HOME/.config/gcloud:/home/vscode/.config/gcloud:cached
+    depends_on:
+      - spanner-emulator
+  spanner-emulator:
+    image: gcr.io/cloud-spanner-emulator/emulator
+    ports:
+      - 9010:9010
+      - 9020:9020
+    healthcheck:
+      test: ['CMD', 'curl', 'http://127.0.0.1:9020']
+      interval: 10s
+      timeout: 10s
+      retries: 10
+volumes:
+  tmp:

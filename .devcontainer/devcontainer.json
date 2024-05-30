@@ -1,0 +1,41 @@
+{
+  "name": "Effect Architecture Exercise",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "devcontainer",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+  "postCreateCommand": "bash ./scripts/install-deps.sh",
+  "postAttachCommand": "bash ./scripts/setup-gcloud.sh",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "version": "latest",
+      "enableNonRootDocker": "true",
+      "moby": "false"
+    },
+    "ghcr.io/devcontainers/features/node:1": {},
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "configureZshAsDefaultShell": true
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "nrwl.angular-console",
+        "esbenp.prettier-vscode",
+        "dbaeumer.vscode-eslint",
+        "ms-azuretools.vscode-docker",
+        "firsttris.vscode-jest-runner",
+        "github.vscode-github-actions",
+        "github.copilot",
+        "usernamehw.errorlens",
+        "eamodio.gitlens"
+      ],
+      "settings": {
+        "workbench.colorTheme": "Monokai"
+      }
+    }
+  },
+  "forwardPorts": [
+    3000, 4000, 4200, 4201, 4400, 5000, 5001, 5005, 8080, 8108, 8085, 8090,
+    9005, 9010, 9020, 9099, 9150, 9199, 9299, 19000, 19001, 19002
+  ]
+}
