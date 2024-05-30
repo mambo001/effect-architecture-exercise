@@ -110,7 +110,7 @@ export const TimestampGeneratorLive = Layer.sync(
   makeTimestamp
 );
 
-export const StubTodoPersistence = (todos: Record<string, Todo>) =>
+export const InMemoryTodoPersistence = (todos: Record<string, Todo>) =>
   Layer.sync(TodoPersistence, () => ({
     save: (todo) =>
       Effect.succeed(() => {
@@ -122,7 +122,7 @@ export const StubTodoPersistence = (todos: Record<string, Todo>) =>
     list: Effect.succeed(Object.values(todos)),
   }));
 
-export const StubUserPersistence = (users: Record<string, User>) =>
+export const InMemoryUserPersistence = (users: Record<string, User>) =>
   Layer.sync(UserPersistence, () => ({
     save: (user) =>
       Effect.succeed(() => {

@@ -7,16 +7,16 @@ import { Todo, User } from '../model';
 import {
   lookupTodo,
   listTodos,
-  StubTodoPersistence,
   saveTodo,
   ShortUniqueIdGeneratorLive,
   TimestampGeneratorLive,
   generateId,
   generateTimestamp,
-  StubUserPersistence,
   saveUser,
   lookupUser,
   listUsers,
+  InMemoryTodoPersistence,
+  InMemoryUserPersistence,
 } from '../services';
 import { someOrFail } from '../lib/common';
 
@@ -181,7 +181,7 @@ export const main: Main = ConfigProvider.fromEnv()
       Effect.all(apps, { concurrency: apps.length }).pipe(
         Effect.asVoid,
         Effect.provide(
-          StubTodoPersistence({
+          InMemoryTodoPersistence({
             '1': {
               id: '1',
               timestamp: new Date(),
@@ -203,7 +203,7 @@ export const main: Main = ConfigProvider.fromEnv()
           })
         ),
         Effect.provide(
-          StubUserPersistence({
+          InMemoryUserPersistence({
             '1': {
               id: '1',
               name: 'User 1',
