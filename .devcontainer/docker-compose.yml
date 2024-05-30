@@ -8,6 +8,9 @@ services:
     environment:
       CR_HOST: $CR_HOST
       HOST_IP: $HOST_IP
+      POSTGRES_DATABASE: $POSTGRES_DATABASE
+      POSTGRES_USER: $POSTGRES_USER
+      POSTGRES_PASSWORD: $POSTGRES_PASSWORD
     volumes:
       - ../..:/workspaces:cached
       - $HOME/.ssh:/home/vscode/.ssh:cached
@@ -18,10 +21,6 @@ services:
       - postgres-data:/var/lib/postgresql/data
     ports:
       - 5432:5432
-    environment:
-      POSTGRES_DB: $POSTGRES_DB
-      POSTGRES_USER: $POSTGRES_USER
-      POSTGRES_PASSWORD: $POSTGRES_PASSWORD
 volumes:
   postgres-data:
   tmp:

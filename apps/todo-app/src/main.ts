@@ -1,5 +1,31 @@
-import { NodeRuntime } from '@effect/platform-node';
+// import { NodeRuntime } from '@effect/platform-node';
 
-import { main } from './environment/environment';
+// import { main } from './environment/environment';
 
-NodeRuntime.runMain(main);
+// NodeRuntime.runMain(main);
+
+import { Schema } from '@effect/schema';
+import { Effect, pipe } from 'effect';
+import { PgLayer, PgQuery } from 'effect-pg';
+
+const User = Schema.Struct({ name: Schema.String });
+
+const createUsersTable = PgQuery.all(
+  'CREATE TABLE IF NOT EXISTS users (name TEXT NOT NULL)'
+);
+const insertUser = PgQuery.all('INSERT INTO users (name) VALUES ($1)');
+const selectUser = PgQuery.one('SELECT * FROM users', User);
+
+pipe(
+  createUsersTable(),
+  Effect.flatMap(() => insertUser('patrik')),
+  Effect.flatMap(() => selectUser()),
+  Effect.flatMap((result) => Effect.log(`User: ${JSON.stringify(result)}`)),
+  Effect.provide(PgLayer.Client),
+  Effect.provide(
+    PgLayer.setConfig({
+      defaultHost: process.env.HOST_IP,
+    })
+  ),
+  Effect.runPromise
+);
