@@ -3,4 +3,4 @@
 echo "Installing npm deps"
 
 npm install
-npm i -g nx@v18.2.4
+npm i -g nx@v19.0.8
