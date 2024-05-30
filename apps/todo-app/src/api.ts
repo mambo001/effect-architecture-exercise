@@ -98,7 +98,7 @@ export const listUsers = Api.get('listUsers', '/users').pipe(
 
 export const assignTodo = Api.put('assignTodo', '/todo/assignee').pipe(
   Api.setRequestBody(AssignTodoPath),
-  Api.setResponseStatus(StatusCodes.OK),
+  Api.setResponseStatus(StatusCodes.NO_CONTENT),
   Api.setResponseBody(AssignTodoResponse),
   Api.addResponse({
     status: StatusCodes.NOT_FOUND,
