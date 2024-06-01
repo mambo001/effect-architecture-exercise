@@ -5,6 +5,7 @@
   "scripts": {},
   "private": true,
   "dependencies": {
+    "@effect/sql": "^0.3.4",
     "axios": "^1.6.0",
     "effect": "^3.2.5",
     "effect-http": "^0.67.2",
