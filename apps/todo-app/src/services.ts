@@ -1,13 +1,23 @@
-import { Config, Context, Data, Effect, Layer, Option, pipe } from 'effect';
+import {
+  Config,
+  Context,
+  Data,
+  Effect,
+  Layer,
+  Option,
+  pipe,
+  Array,
+  String,
+} from 'effect';
 import * as Sql from '@effect/sql';
 import * as Pg from '@effect/sql-pg';
 import ShortUniqueId from 'short-unique-id';
 
-import { ParseResult } from '@effect/schema';
+import { ParseResult, Schema } from '@effect/schema';
 
 import { Todo, User } from './model';
 import { SqlError } from '@effect/sql/Error';
-import { PgClientConfig } from '@effect/sql-pg/Client';
+import { PgClientConfig, PgClient } from '@effect/sql-pg/Client';
 
 export class TodoPersistenceError extends Data.TaggedError(
   'TodoPersistenceError'
@@ -114,30 +124,6 @@ export const TimestampGeneratorLive = Layer.sync(
   makeTimestamp
 );
 
-export const InMemoryTodoPersistence = (todos: Record<string, Todo>) =>
-  Layer.sync(TodoPersistence, () => ({
-    save: (todo) =>
-      Effect.succeed(() => {
-        todos[todo.id] = todo;
-        return todo;
-      }),
-    lookup: (todoId) =>
-      Effect.succeed(Option.fromNullable(todos[String(todoId)])),
-    list: Effect.succeed(Object.values(todos)),
-  }));
-
-export const InMemoryUserPersistence = (users: Record<string, User>) =>
-  Layer.sync(UserPersistence, () => ({
-    save: (user) =>
-      Effect.succeed(() => {
-        users[user.id] = user;
-        return user;
-      }),
-    lookup: (userId) =>
-      Effect.succeed(Option.fromNullable(users[String(userId)])),
-    list: Effect.succeed(Object.values(users)),
-  }));
-
 export type PgLiveConfig = Pick<
   PgClientConfig,
   'host' | 'database' | 'username' | 'password'
@@ -148,13 +134,18 @@ export const PgLive = (config: PgLiveConfig) =>
     database: Config.succeed(config.database),
     username: Config.succeed(config.username),
     password: Config.succeed(config.password),
+    transformQueryNames: Config.succeed(String.camelToSnake),
+    transformResultNames: Config.succeed(String.snakeToCamel),
   });
 
+const encodeUser = Schema.encode(User);
+const decodeUserArray = Schema.decodeUnknown(Schema.Array(User));
 export const SqlUserPersistence = Sql.client.Client.pipe(
   Effect.map(
     (client): UserPersistence => ({
       save: (user) =>
         Effect.gen(function* (_) {
+          const encoded = yield* _(encodeUser(user));
           const res = yield* _(
             client`INSERT INTO
               users (
@@ -163,9 +154,9 @@ export const SqlUserPersistence = Sql.client.Client.pipe(
                 assigned_todos
               )
               VALUES (
-                ${user.id}, 
-                ${user.name}, 
-                ARRAY[${user.assignedTodos.join("','")}]
+                ${encoded.id}, 
+                ${encoded.name}, 
+                ARRAY[${encoded.assignedTodos.join("','")}]
               )
             `
           );
@@ -175,62 +166,36 @@ export const SqlUserPersistence = Sql.client.Client.pipe(
       lookup: (userId) =>
         Effect.gen(function* (_) {
           const raw = yield* _(
-            client<{
-              readonly id: string;
-              readonly name: string;
-              readonly assigned_todos: string[];
-            }>`SELECT *
+            client`SELECT *
             FROM users
-            WHERE users.id = ${String(userId)}
+            WHERE users.id = ${userId}
             `
           );
-          return yield* _(
-            Effect.succeed(
-              pipe(
-                raw,
-                Option.fromIterable,
-                Option.map(
-                  (user) =>
-                    new User({
-                      id: user.id,
-                      name: user.name,
-                      assignedTodos: user.assigned_todos,
-                    })
-                )
-              )
-            )
-          );
+          const user = yield* _(decodeUserArray(raw));
+          return Array.head(user);
         }),
       list: Effect.gen(function* (_) {
         const raw = yield* _(
-          client<{
-            readonly id: string;
-            readonly name: string;
-            readonly assigned_todos: string[];
-          }>`
+          client`
           SELECT *
           FROM users
           `
         );
-        return raw.map(
-          (user) =>
-            new User({
-              id: user.id,
-              name: user.name,
-              assignedTodos: user.assigned_todos,
-            })
-        );
+        return yield* _(decodeUserArray(raw));
       }),
     })
   ),
   Layer.effect(UserPersistence)
 );
 
+const encodeTodo = Schema.encode(Todo);
+const decodeTodoArray = Schema.decodeUnknown(Schema.Array(Todo));
 export const SqlTodoPersistence = Sql.client.Client.pipe(
   Effect.map(
     (client): TodoPersistence => ({
       save: (todo) =>
-        Effect.gen(function* (_) {
+        Effect.gen(function* (_) {  
+          const encoded = yield* _(encodeTodo(todo));
           const res = yield* _(
             client`INSERT INTO
               todos (
@@ -240,68 +205,37 @@ export const SqlTodoPersistence = Sql.client.Client.pipe(
                 is_done
               )
               VALUES (
-                ${todo.id}, 
-                ${todo.timestamp},
-                ${todo.title}, 
-                ${todo.isDone}
+                ${encoded.id}, 
+                ${encoded.timestamp},
+                ${encoded.title}, 
+                ${encoded.isDone}
               )
+              ON CONFLICT (id) DO UPDATE
+              SET is_done = EXCLUDED.is_done
             `
           );
           yield* _(Effect.log(res));
-          yield* _(Effect.log(`${todo.id} is saved!`));
+          yield* _(Effect.log(`${encoded.id} is saved!`));
         }),
       lookup: (todoId) =>
         Effect.gen(function* (_) {
           const raw = yield* _(
-            client<{
-              readonly id: string;
-              readonly timestamp: Date;
-              readonly title: string;
-              readonly is_done: boolean;
-            }>`SELECT *
+            client`SELECT *
             FROM todos
-            WHERE todos.id = ${String(todoId)}
+            WHERE todos.id = ${todoId}
             `
           );
-          return yield* _(
-            Effect.succeed(
-              pipe(
-                raw,
-                Option.fromIterable,
-                Option.map(
-                  (todo) =>
-                    new Todo({
-                      id: todo.id,
-                      timestamp: todo.timestamp,
-                      title: todo.title,
-                      isDone: todo.is_done,
-                    })
-                )
-              )
-            )
-          );
+          const todo = yield* _(decodeTodoArray(raw));
+          return Array.head(todo);
         }),
       list: Effect.gen(function* (_) {
         const raw = yield* _(
-          client<{
-            readonly id: string;
-            readonly timestamp: Date;
-            readonly title: string;
-            readonly is_done: boolean;
-          }>`
+          client`
           SELECT *
           FROM todos
           `
         );
-        return raw.map(
-          (todo) =>
-            new Todo({
-              id: todo.id,
-              timestamp: todo.timestamp,
-              title: todo.title,
-              isDone: todo.is_done,
-            })
-        );
+        return yield* _(decodeTodoArray(raw));
       }),
     })
   ),
