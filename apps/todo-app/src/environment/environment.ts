@@ -15,8 +15,9 @@ import {
   saveUser,
   lookupUser,
   listUsers,
-  InMemoryTodoPersistence,
-  InMemoryUserPersistence,
+  PgLive,
+  SqlUserPersistence,
+  SqlTodoPersistence,
 } from '../services';
 import { someOrFail } from '../lib/common';
 
@@ -25,6 +26,10 @@ const appConfig = Config.all({
   allowedOrigins: Config.string('ALLOWED_ORIGINS').pipe(
     Config.withDefault('*')
   ),
+  database: Config.string('POSTGRES_DATABASE'),
+  host: Config.string('HOST_IP'),
+  username: Config.string('POSTGRES_USER'),
+  password: Config.secret('POSTGRES_PASSWORD'),
 });
 
 type AppConfig_ = typeof appConfig extends Config.Config<infer A> ? A : never;
@@ -180,45 +185,14 @@ export const main: Main = ConfigProvider.fromEnv()
     Effect.flatMap((config) =>
       Effect.all(apps, { concurrency: apps.length }).pipe(
         Effect.asVoid,
+        Effect.provide(SqlTodoPersistence),
+        Effect.provide(SqlUserPersistence),
         Effect.provide(
-          InMemoryTodoPersistence({
-            '1': {
-              id: '1',
-              timestamp: new Date(),
-              title: 'First todo',
-              isDone: false,
-            },
-            '2': {
-              id: '2',
-              timestamp: new Date(),
-              title: 'Second todo',
-              isDone: false,
-            },
-            '3': {
-              id: '3',
-              timestamp: new Date(),
-              title: 'Third todo',
-              isDone: false,
-            },
-          })
-        ),
-        Effect.provide(
-          InMemoryUserPersistence({
-            '1': {
-              id: '1',
-              name: 'User 1',
-              assignedTodos: [''],
-            },
-            '2': {
-              id: '2',
-              name: 'User 2',
-              assignedTodos: [''],
-            },
-            '3': {
-              id: '3',
-              name: 'User 3',
-              assignedTodos: [''],
-            },
+          PgLive({
+            host: config.host,
+            database: config.database,
+            username: config.username,
+            password: config.password,
           })
         ),
         Effect.provide(ShortUniqueIdGeneratorLive),
