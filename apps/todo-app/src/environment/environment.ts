@@ -88,6 +88,7 @@ const ApiApp = ApiRoutes.pipe(
       yield* _(saveTodo(updatedTodo));
       return {
         message: 'Todo marked as done',
+        todo: updatedTodo,
       };
     })
   ),

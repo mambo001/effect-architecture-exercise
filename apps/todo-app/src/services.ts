@@ -158,6 +158,8 @@ export const SqlUserPersistence = Sql.client.Client.pipe(
                 ${encoded.name}, 
                 ARRAY[${encoded.assignedTodos.join("','")}]
               )
+              ON CONFLICT (id) DO UPDATE
+              SET assigned_todos = EXCLUDED.assigned_todos
             `
           );
           yield* _(Effect.log(res));
