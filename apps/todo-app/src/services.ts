@@ -1,9 +1,13 @@
-import { Context, Data, Effect, Layer, Option } from 'effect';
+import { Config, Context, Data, Effect, Layer, Option, pipe } from 'effect';
+import * as Sql from '@effect/sql';
+import * as Pg from '@effect/sql-pg';
 import ShortUniqueId from 'short-unique-id';
 
 import { ParseResult } from '@effect/schema';
 
 import { Todo, User } from './model';
+import { SqlError } from '@effect/sql/Error';
+import { PgClientConfig } from '@effect/sql-pg/Client';
 
 export class TodoPersistenceError extends Data.TaggedError(
   'TodoPersistenceError'
@@ -16,18 +20,18 @@ export interface TodoPersistence {
     todo: Todo
   ) => Effect.Effect<
     void,
-    ParseResult.ParseError | TodoPersistenceError,
+    ParseResult.ParseError | TodoPersistenceError | SqlError,
     IdGenerator | TimestampGenerator
   >;
   lookup: (
     todoId: string | number
   ) => Effect.Effect<
     Option.Option<Todo>,
-    ParseResult.ParseError | TodoPersistenceError
+    ParseResult.ParseError | TodoPersistenceError | SqlError
   >;
   list: Effect.Effect<
     ReadonlyArray<Todo>,
-    ParseResult.ParseError | TodoPersistenceError
+    ParseResult.ParseError | TodoPersistenceError | SqlError
   >;
 }
 
@@ -48,18 +52,18 @@ export interface UserPersistence {
     user: User
   ) => Effect.Effect<
     void,
-    ParseResult.ParseError | UserPersistenceError,
+    ParseResult.ParseError | UserPersistenceError | SqlError,
     IdGenerator | TimestampGenerator
   >;
   lookup: (
     userId: string | number
   ) => Effect.Effect<
     Option.Option<User>,
-    ParseResult.ParseError | UserPersistenceError
+    ParseResult.ParseError | UserPersistenceError | SqlError
   >;
   list: Effect.Effect<
     ReadonlyArray<User>,
-    ParseResult.ParseError | UserPersistenceError
+    ParseResult.ParseError | UserPersistenceError | SqlError
   >;
 }
 
@@ -133,3 +137,173 @@ export const InMemoryUserPersistence = (users: Record<string, User>) =>
       Effect.succeed(Option.fromNullable(users[String(userId)])),
     list: Effect.succeed(Object.values(users)),
   }));
+
+export type PgLiveConfig = Pick<
+  PgClientConfig,
+  'host' | 'database' | 'username' | 'password'
+>;
+export const PgLive = (config: PgLiveConfig) =>
+  Pg.client.layer({
+    host: Config.succeed(config.host),
+    database: Config.succeed(config.database),
+    username: Config.succeed(config.username),
+    password: Config.succeed(config.password),
+  });
+
+export const SqlUserPersistence = Sql.client.Client.pipe(
+  Effect.map(
+    (client): UserPersistence => ({
+      save: (user) =>
+        Effect.gen(function* (_) {
+          const res = yield* _(
+            client`INSERT INTO
+              users (
+                id, 
+                name, 
+                assigned_todos
+              )
+              VALUES (
+                ${user.id}, 
+                ${user.name}, 
+                ARRAY[${user.assignedTodos.join("','")}]
+              )
+            `
+          );
+          yield* _(Effect.log(res));
+          yield* _(Effect.log(`${user.id} is saved!`));
+        }),
+      lookup: (userId) =>
+        Effect.gen(function* (_) {
+          const raw = yield* _(
+            client<{
+              readonly id: string;
+              readonly name: string;
+              readonly assigned_todos: string[];
+            }>`SELECT *
+            FROM users
+            WHERE users.id = ${String(userId)}
+            `
+          );
+          return yield* _(
+            Effect.succeed(
+              pipe(
+                raw,
+                Option.fromIterable,
+                Option.map(
+                  (user) =>
+                    new User({
+                      id: user.id,
+                      name: user.name,
+                      assignedTodos: user.assigned_todos,
+                    })
+                )
+              )
+            )
+          );
+        }),
+      list: Effect.gen(function* (_) {
+        const raw = yield* _(
+          client<{
+            readonly id: string;
+            readonly name: string;
+            readonly assigned_todos: string[];
+          }>`
+          SELECT *
+          FROM users
+          `
+        );
+        return raw.map(
+          (user) =>
+            new User({
+              id: user.id,
+              name: user.name,
+              assignedTodos: user.assigned_todos,
+            })
+        );
+      }),
+    })
+  ),
+  Layer.effect(UserPersistence)
+);
+
+export const SqlTodoPersistence = Sql.client.Client.pipe(
+  Effect.map(
+    (client): TodoPersistence => ({
+      save: (todo) =>
+        Effect.gen(function* (_) {
+          const res = yield* _(
+            client`INSERT INTO
+              todos (
+                id, 
+                timestamp,
+                title,
+                is_done
+              )
+              VALUES (
+                ${todo.id}, 
+                ${todo.timestamp},
+                ${todo.title}, 
+                ${todo.isDone}
+              )
+            `
+          );
+          yield* _(Effect.log(res));
+          yield* _(Effect.log(`${todo.id} is saved!`));
+        }),
+      lookup: (todoId) =>
+        Effect.gen(function* (_) {
+          const raw = yield* _(
+            client<{
+              readonly id: string;
+              readonly timestamp: Date;
+              readonly title: string;
+              readonly is_done: boolean;
+            }>`SELECT *
+            FROM todos
+            WHERE todos.id = ${String(todoId)}
+            `
+          );
+          return yield* _(
+            Effect.succeed(
+              pipe(
+                raw,
+                Option.fromIterable,
+                Option.map(
+                  (todo) =>
+                    new Todo({
+                      id: todo.id,
+                      timestamp: todo.timestamp,
+                      title: todo.title,
+                      isDone: todo.is_done,
+                    })
+                )
+              )
+            )
+          );
+        }),
+      list: Effect.gen(function* (_) {
+        const raw = yield* _(
+          client<{
+            readonly id: string;
+            readonly timestamp: Date;
+            readonly title: string;
+            readonly is_done: boolean;
+          }>`
+          SELECT *
+          FROM todos
+          `
+        );
+        return raw.map(
+          (todo) =>
+            new Todo({
+              id: todo.id,
+              timestamp: todo.timestamp,
+              title: todo.title,
+              isDone: todo.is_done,
+            })
+        );
+      }),
+    })
+  ),
+  Layer.effect(TodoPersistence)
+);
