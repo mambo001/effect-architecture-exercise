@@ -20,6 +20,7 @@ import {
   SqlTodoPersistence,
 } from '../services';
 import { someOrFail } from '../lib/common';
+  SqlTodoStatusRepository,
 
 const appConfig = Config.all({
   port: Config.number('PORT').pipe(Config.withDefault(3000)),
@@ -186,6 +187,7 @@ export const main: Main = ConfigProvider.fromEnv()
     Effect.flatMap((config) =>
       Effect.all(apps, { concurrency: apps.length }).pipe(
         Effect.asVoid,
+        Effect.provide(SqlTodoStatusRepository),
         Effect.provide(SqlTodoPersistence),
         Effect.provide(SqlUserPersistence),
         Effect.provide(
