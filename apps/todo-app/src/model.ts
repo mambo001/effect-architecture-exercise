@@ -40,7 +40,6 @@ export const MarkTodoDoneRequestPath = Schema.Struct({
 export class User extends Schema.Class<User>('User')({
   id: Schema.String,
   name: Schema.String,
-  assignedTodos: Schema.Array(Schema.String),
 }) {}
 
 export const CreateUserRequest = Schema.Struct({ name: Schema.String });
