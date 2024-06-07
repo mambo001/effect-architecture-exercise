@@ -34,6 +34,7 @@ export const MarkTodoDoneResponse = Schema.Struct({
 });
 
 export const MarkTodoDoneRequestPath = Schema.Struct({
+  userId: Schema.String,
   todoId: Schema.String,
 });
 

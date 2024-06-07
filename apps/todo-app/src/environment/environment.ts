@@ -24,6 +24,7 @@ import {
   SqlTodoStatusRepository,
   assignTodo,
   lookupTodoStatus,
+  markDoneTodo,
   saveTodoStatus,
 } from '../todo-status';
 
@@ -79,20 +80,6 @@ const ApiApp = ApiRoutes.pipe(
   ),
   RouterBuilder.handle('markDoneTodo', ({ body }) =>
     Effect.gen(function* (_) {
-      // lookupTodoStatus
-      // markDoneTodoStatus
-      // saveTodoStatus
-      // use repo aggregate instead of directly to persistence
-      // yield* _(
-      //   lookupUser(body.userId).pipe(
-      //     someOrFail(() =>
-      //       HttpError.notFoundError({
-      //         message: 'User not found',
-      //       })
-      //     )
-      //   )
-      // );
-
       const todoStatus = yield* _(
         lookupTodoStatus(body.todoId).pipe(
           someOrFail(() =>
@@ -101,25 +88,12 @@ const ApiApp = ApiRoutes.pipe(
             })
           )
         ),
-        Effect.flatMap((todo) => assignTodo(todo, body.userId))
+        Effect.flatMap((todoStatus) => markDoneTodo(todoStatus, body.userId))
       );
       yield* _(saveTodoStatus(todoStatus));
-      // const markDone = markDoneTodo(todoStatus, body.userId);
-      // yield* _(saveTodoStatus(markDone));
-
-      // not needed
-      // const todo = yield* _(
-      //   lookupTodo(body.todoId).pipe(
-      //     someOrFail(() =>
-      //       HttpError.notFoundError({
-      //         message: 'Todo not found',
-      //       })
-      //     )
-      //   )
-      // );
       return {
+        todoStatus,
         message: 'Todo marked as done',
-        // todo: todo,
       };
     })
   ),

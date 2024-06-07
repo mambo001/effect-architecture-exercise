@@ -58,7 +58,7 @@ export function makeDBRow(todoStatus: TodoStatus): DBRow {
     case 'TodoNotAssigned':
       return { assignedTo: '', isAssigned: false };
     case 'TodoAssigned':
-      return { assignedTo: todoStatus.userId, isAssigned: true };
+      return { assignedTo: todoStatus.userId, isAssigned: false };
     case 'TodoDone':
       return { assignedTo: todoStatus.userId, isAssigned: true };
   }
@@ -72,28 +72,26 @@ export function assignTodo(todoStatus: TodoStatus, userId: string) {
       // assign todo
       return Effect.succeed(new TodoAssigned({ id, userId }));
     },
-    TodoAssigned: (err) => {
-      return Effect.fail(new TodoStatusError({ raw: err }));
+    TodoAssigned: (todoStatus) => {
+      return Effect.fail(todoStatus);
     },
-    TodoDone: (err) => {
-      return Effect.fail(new TodoStatusError({ raw: err }));
+    TodoDone: (todoStatus) => {
+      return Effect.fail(todoStatus);
     },
   })(todoStatus);
 }
 
 export function markDoneTodo(todoStatus: TodoStatus, userId: string) {
   return matchTodoStatus({
-    TodoNotAssigned: ({ id }) => {
+    TodoNotAssigned: (todoStatus) => {
       // assign todo
-      return Effect.succeed(todoStatus);
+      return Effect.fail(todoStatus);
     },
     TodoAssigned: ({ id }) => {
-      // todo already assigned
       return Effect.succeed(new TodoDone({ id, userId }));
     },
-    TodoDone: ({ userId }) => {
-      // todo is done
-      return Effect.succeed(todoStatus);
+    TodoDone: (todoStatus) => {
+      return Effect.fail(todoStatus);
     },
   })(todoStatus);
 }
@@ -143,7 +141,8 @@ export const SqlTodoStatusRepository = Sql.client.Client.pipe(
           yield* _(
             client`
               UPDATE todos
-              SET assigned_to = ${row.assignedTo}
+              SET assigned_to = ${row.assignedTo},
+              is_done = ${row.isAssigned}
               WHERE todos.id = ${todoStatus.id}
             `
           );
@@ -159,7 +158,7 @@ export const SqlTodoStatusRepository = Sql.client.Client.pipe(
               `
           );
           const todos = yield* _(decodeTodoArray(raw));
-          return pipe(Array.head(todos), Option.map(makeTodoStatus));
+          return Array.head(todos).pipe(Option.map(makeTodoStatus));
         }),
     })
   ),
