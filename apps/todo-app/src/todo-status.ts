@@ -87,8 +87,11 @@ export function markDoneTodo(todoStatus: TodoStatus, userId: string) {
       // assign todo
       return Effect.fail(todoStatus);
     },
-    TodoAssigned: ({ id }) => {
-      return Effect.succeed(new TodoDone({ id, userId }));
+    TodoAssigned: (todoStatus) => {
+      if (todoStatus.userId !== userId) {
+        return Effect.fail(todoStatus);
+      }
+      return Effect.succeed(new TodoDone({ id: todoStatus.id, userId }));
     },
     TodoDone: (todoStatus) => {
       return Effect.fail(todoStatus);
@@ -148,13 +151,13 @@ export const SqlTodoStatusRepository = Sql.client.Client.pipe(
           );
           yield* _(Effect.log(`${todoStatus.id} is saved!`));
         }),
-      lookup: (userId) =>
+      lookup: (todoId) =>
         Effect.gen(function* (_) {
           const raw = yield* _(
             client`
                 SELECT *
                 FROM todos
-                WHERE todos.id = ${userId}
+                WHERE todos.id = ${todoId}
               `
           );
           const todos = yield* _(decodeTodoArray(raw));
