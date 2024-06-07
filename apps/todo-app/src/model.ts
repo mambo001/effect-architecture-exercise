@@ -5,6 +5,7 @@ export class Todo extends Schema.Class<Todo>('Todo')({
   timestamp: Schema.Date,
   title: Schema.String,
   isDone: Schema.Boolean,
+  assignedTo: Schema.NullOr(Schema.String),
 }) {}
 
 export const CreateTodo = Schema.Struct({
