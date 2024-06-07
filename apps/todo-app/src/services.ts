@@ -17,7 +17,7 @@ import { ParseResult, Schema } from '@effect/schema';
 
 import { Todo, User } from './model';
 import { SqlError } from '@effect/sql/Error';
-import { PgClientConfig, PgClient } from '@effect/sql-pg/Client';
+import { PgClientConfig } from '@effect/sql-pg/Client';
 
 export class TodoPersistenceError extends Data.TaggedError(
   'TodoPersistenceError'
@@ -138,28 +138,25 @@ export const PgLive = (config: PgLiveConfig) =>
     transformResultNames: Config.succeed(String.snakeToCamel),
   });
 
-const encodeUser = Schema.encode(User);
-const decodeUserArray = Schema.decodeUnknown(Schema.Array(User));
+export const encodeUser = Schema.encode(User);
+export const decodeUserArray = Schema.decodeUnknown(Schema.Array(User));
 export const SqlUserPersistence = Sql.client.Client.pipe(
   Effect.map(
     (client): UserPersistence => ({
       save: (user) =>
         Effect.gen(function* (_) {
           const encoded = yield* _(encodeUser(user));
+          // TODO: add duplicate check here
           const res = yield* _(
             client`INSERT INTO
               users (
                 id, 
-                name, 
-                assigned_todos
+                name
               )
               VALUES (
                 ${encoded.id}, 
-                ${encoded.name}, 
-                ARRAY[${encoded.assignedTodos.join("','")}]
+                ${encoded.name}
               )
-              ON CONFLICT (id) DO UPDATE
-              SET assigned_todos = EXCLUDED.assigned_todos
             `
           );
           yield* _(Effect.log(res));
@@ -190,13 +187,13 @@ export const SqlUserPersistence = Sql.client.Client.pipe(
   Layer.effect(UserPersistence)
 );
 
-const encodeTodo = Schema.encode(Todo);
-const decodeTodoArray = Schema.decodeUnknown(Schema.Array(Todo));
+export const encodeTodo = Schema.encode(Todo);
+export const decodeTodoArray = Schema.decodeUnknown(Schema.Array(Todo));
 export const SqlTodoPersistence = Sql.client.Client.pipe(
   Effect.map(
     (client): TodoPersistence => ({
       save: (todo) =>
-        Effect.gen(function* (_) {  
+        Effect.gen(function* (_) {
           const encoded = yield* _(encodeTodo(todo));
           const res = yield* _(
             client`INSERT INTO
