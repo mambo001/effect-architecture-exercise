@@ -20,7 +20,12 @@ import {
   SqlTodoPersistence,
 } from '../services';
 import { someOrFail } from '../lib/common';
+import {
   SqlTodoStatusRepository,
+  assignTodo,
+  lookupTodoStatus,
+  saveTodoStatus,
+} from '../todo-status';
 
 const appConfig = Config.all({
   port: Config.number('PORT').pipe(Config.withDefault(3000)),
@@ -50,6 +55,7 @@ const ApiApp = ApiRoutes.pipe(
         timestamp,
         title: body.title,
         isDone: false,
+        assignedTo: '',
       });
       yield* _(saveTodo(todo));
       return {
@@ -73,23 +79,47 @@ const ApiApp = ApiRoutes.pipe(
   ),
   RouterBuilder.handle('markDoneTodo', ({ body }) =>
     Effect.gen(function* (_) {
-      const todo = yield* _(
-        lookupTodo(body.todoId).pipe(
+      // lookupTodoStatus
+      // markDoneTodoStatus
+      // saveTodoStatus
+      // use repo aggregate instead of directly to persistence
+      // yield* _(
+      //   lookupUser(body.userId).pipe(
+      //     someOrFail(() =>
+      //       HttpError.notFoundError({
+      //         message: 'User not found',
+      //       })
+      //     )
+      //   )
+      // );
+
+      const todoStatus = yield* _(
+        lookupTodoStatus(body.todoId).pipe(
           someOrFail(() =>
             HttpError.notFoundError({
-              message: 'Todo not found',
+              message: 'Todo status not found',
             })
           )
-        )
+        ),
+        Effect.flatMap((todo) => assignTodo(todo, body.userId))
       );
-      const updatedTodo = new Todo({
-        ...todo,
-        isDone: true,
-      });
-      yield* _(saveTodo(updatedTodo));
+      yield* _(saveTodoStatus(todoStatus));
+      // const markDone = markDoneTodo(todoStatus, body.userId);
+      // yield* _(saveTodoStatus(markDone));
+
+      // not needed
+      // const todo = yield* _(
+      //   lookupTodo(body.todoId).pipe(
+      //     someOrFail(() =>
+      //       HttpError.notFoundError({
+      //         message: 'Todo not found',
+      //       })
+      //     )
+      //   )
+      // );
       return {
         message: 'Todo marked as done',
-        todo: updatedTodo,
+        // todo: todo,
       };
     })
   ),
@@ -99,7 +129,6 @@ const ApiApp = ApiRoutes.pipe(
       const user = new User({
         id: `user-${id}`,
         name: body.name,
-        assignedTodos: [],
       });
       yield* _(saveUser(user));
       return {
@@ -123,40 +152,17 @@ const ApiApp = ApiRoutes.pipe(
   ),
   RouterBuilder.handle('assignTodo', ({ body }) =>
     Effect.gen(function* (_) {
-      const todo = yield* _(
-        lookupTodo(body.todoId).pipe(
+      const todoStatus = yield* _(
+        lookupTodoStatus(body.todoId).pipe(
           someOrFail(() =>
             HttpError.notFoundError({
               message: 'Todo not found',
             })
           )
-        )
+        ),
+        Effect.flatMap((todo) => assignTodo(todo, body.userId))
       );
-      const user = yield* _(
-        lookupUser(body.userId).pipe(
-          someOrFail(() =>
-            HttpError.notFoundError({
-              message: 'User not found',
-            })
-          )
-        )
-      );
-      yield* _(
-        saveTodo(
-          new Todo({
-            ...todo,
-            isDone: true,
-          })
-        )
-      );
-      yield* _(
-        saveUser(
-          new User({
-            ...user,
-            assignedTodos: [...user.assignedTodos, todo.id],
-          })
-        )
-      );
+      yield* _(saveTodoStatus(todoStatus));
       return {
         message: 'Todo assigned to user',
       };
