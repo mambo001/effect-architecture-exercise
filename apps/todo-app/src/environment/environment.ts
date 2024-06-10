@@ -16,13 +16,12 @@ import {
   SqlTodoPersistence,
 } from '../services';
 import { someOrFail } from '../lib/common';
-import {
-  SqlTodoStatusRepository,
-} from '../todo-status';
+import { SqlTodoStatusRepository } from '../todo-status';
 import {
   handleAssignTodoCommand,
   handleCreateTodoCommand,
   handleCreateUserCommand,
+  handleGetTodoByIdQueryHandler,
   handleMarkDoneTodoCommand,
 } from '../use-cases';
 
@@ -49,13 +48,11 @@ const ApiApp = ApiRoutes.pipe(
     handleCreateTodoCommand({ title: body.title })
   ),
   RouterBuilder.handle('lookupTodo', ({ path }) =>
-    lookupTodo(path.todoId).pipe(
-      someOrFail(() =>
-        HttpError.notFoundError({
-          message: 'Todo not found',
-        })
-      ),
-      Effect.map((todo) => ({ todo: new Todo(todo) }))
+    handleGetTodoByIdQueryHandler({
+      todoId: path.todoId,
+    }).pipe(
+      someOrFail(() => HttpError.notFoundError({ message: 'Todo not found' })),
+      Effect.map((assignedTodo) => ({ todo: assignedTodo }))
     )
   ),
   RouterBuilder.handle('listTodo', () =>

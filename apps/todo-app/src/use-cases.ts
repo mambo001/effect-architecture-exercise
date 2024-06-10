@@ -1,7 +1,15 @@
-import { Effect } from 'effect';
+import { Array, Effect, Option } from 'effect';
+import { Schema } from '@effect/schema';
+import * as Sql from '@effect/sql';
 
-import { Todo, User } from './model';
-import { generateId, generateTimestamp, saveTodo, saveUser } from './services';
+import { AssignedTodo, Todo, User } from './model';
+import {
+  decodeTodoArray,
+  generateId,
+  generateTimestamp,
+  saveTodo,
+  saveUser,
+} from './services';
 import {
   assignTodo,
   lookupTodoStatus,
@@ -99,5 +107,37 @@ export function handleAssignTodoCommand(command: AssignTodoCommand) {
     return {
       message: 'Todo assigned to user',
     };
+  });
+}
+
+export interface GetTodoByIdQueryHandler {
+  todoId: string;
+}
+export const decodeAssignedTodoArray = Schema.decodeUnknown(
+  Schema.Array(AssignedTodo)
+);
+export function handleGetTodoByIdQueryHandler(
+  command: GetTodoByIdQueryHandler
+) {
+  return Effect.gen(function* (_) {
+    const client = yield* _(Sql.client.Client);
+    const raw = yield* _(
+      client`
+        SELECT 
+            t.id AS todo_id,
+            t.timestamp,
+            t.title,
+            t.is_done,
+            t.assigned_to AS assigned_to_id,
+            u.name AS assigned_to_name
+        FROM todos t
+        JOIN users u
+            ON u.id = t.assigned_to
+        WHERE
+            t.id = ${command.todoId};
+      `
+    );
+    const assignedTodo = yield* _(decodeAssignedTodoArray(raw));
+    return Array.head(assignedTodo);
   });
 }

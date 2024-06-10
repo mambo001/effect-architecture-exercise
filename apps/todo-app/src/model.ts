@@ -1,4 +1,5 @@
 import { Schema } from '@effect/schema';
+import { Option } from 'effect';
 
 export class Todo extends Schema.Class<Todo>('Todo')({
   id: Schema.String,
@@ -6,6 +7,15 @@ export class Todo extends Schema.Class<Todo>('Todo')({
   title: Schema.String,
   isDone: Schema.Boolean,
   assignedTo: Schema.NullOr(Schema.String),
+}) {}
+
+export class AssignedTodo extends Schema.Class<AssignedTodo>('AssignedTodo')({
+  todoId: Schema.String,
+  timestamp: Schema.Date,
+  title: Schema.String,
+  isDone: Schema.Boolean,
+  assignedToId: Schema.NullOr(Schema.String),
+  assignedToName: Schema.NullOr(Schema.String),
 }) {}
 
 export const CreateTodo = Schema.Struct({
@@ -18,7 +28,7 @@ export const CreateTodoResponse = Schema.Struct({
 });
 
 export const LookupTodoResponse = Schema.Struct({
-  todo: Todo,
+  todo: AssignedTodo,
 });
 
 export const LookupTodoRequestPath = Schema.Struct({ todoId: Schema.String });
