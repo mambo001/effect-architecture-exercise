@@ -7,12 +7,8 @@ import { Todo, User } from '../model';
 import {
   lookupTodo,
   listTodos,
-  saveTodo,
   ShortUniqueIdGeneratorLive,
   TimestampGeneratorLive,
-  generateId,
-  generateTimestamp,
-  saveUser,
   lookupUser,
   listUsers,
   PgLive,
@@ -22,11 +18,13 @@ import {
 import { someOrFail } from '../lib/common';
 import {
   SqlTodoStatusRepository,
-  assignTodo,
-  lookupTodoStatus,
-  markDoneTodo,
-  saveTodoStatus,
 } from '../todo-status';
+import {
+  handleAssignTodoCommand,
+  handleCreateTodoCommand,
+  handleCreateUserCommand,
+  handleMarkDoneTodoCommand,
+} from '../use-cases';
 
 const appConfig = Config.all({
   port: Config.number('PORT').pipe(Config.withDefault(3000)),
@@ -48,22 +46,7 @@ const AppConfig = Context.GenericTag<AppConfig>('app-config');
 const ApiApp = ApiRoutes.pipe(
   RouterBuilder.make,
   RouterBuilder.handle('createTodo', ({ body }) =>
-    Effect.gen(function* (_) {
-      const id = yield* _(generateId);
-      const timestamp = yield* _(generateTimestamp);
-      const todo = new Todo({
-        id: `todo-${id}`,
-        timestamp,
-        title: body.title,
-        isDone: false,
-        assignedTo: '',
-      });
-      yield* _(saveTodo(todo));
-      return {
-        todo,
-        message: 'Todo created',
-      };
-    })
+    handleCreateTodoCommand({ title: body.title })
   ),
   RouterBuilder.handle('lookupTodo', ({ path }) =>
     lookupTodo(path.todoId).pipe(
@@ -79,36 +62,11 @@ const ApiApp = ApiRoutes.pipe(
     listTodos.pipe(Effect.map((todos) => ({ todos })))
   ),
   RouterBuilder.handle('markDoneTodo', ({ body }) =>
-    Effect.gen(function* (_) {
-      const todoStatus = yield* _(
-        lookupTodoStatus(body.todoId).pipe(
-          someOrFail(() =>
-            HttpError.notFoundError({
-              message: 'Todo status not found',
-            })
-          )
-        ),
-        Effect.flatMap((todoStatus) => markDoneTodo(todoStatus, body.userId))
-      );
-      yield* _(saveTodoStatus(todoStatus));
-      return {
-        todoStatus,
-        message: 'Todo marked as done',
-      };
-    })
+    handleMarkDoneTodoCommand({ todoId: body.todoId, userId: body.userId })
   ),
   RouterBuilder.handle('createUser', ({ body }) =>
-    Effect.gen(function* (_) {
-      const id = yield* _(generateId);
-      const user = new User({
-        id: `user-${id}`,
-        name: body.name,
-      });
-      yield* _(saveUser(user));
-      return {
-        user,
-        message: 'User created',
-      };
+    handleCreateUserCommand({
+      name: body.name,
     })
   ),
   RouterBuilder.handle('lookupUser', ({ path }) =>
@@ -125,24 +83,12 @@ const ApiApp = ApiRoutes.pipe(
     listUsers.pipe(Effect.map((users) => ({ users })))
   ),
   RouterBuilder.handle('assignTodo', ({ body }) =>
-    Effect.gen(function* (_) {
-      const todoStatus = yield* _(
-        lookupTodoStatus(body.todoId).pipe(
-          someOrFail(() =>
-            HttpError.notFoundError({
-              message: 'Todo not found',
-            })
-          )
-        ),
-        Effect.flatMap((todo) => assignTodo(todo, body.userId))
-      );
-      yield* _(saveTodoStatus(todoStatus));
-      return {
-        message: 'Todo assigned to user',
-      };
+    handleAssignTodoCommand({
+      todoId: body.todoId,
+      userId: body.userId,
     })
   ),
-  RouterBuilder.buildPartial
+  RouterBuilder.build
 );
 
 const runApi = AppConfig.pipe(
