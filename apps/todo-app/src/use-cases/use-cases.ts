@@ -2,22 +2,18 @@ import { Array, Effect, Option } from 'effect';
 import { Schema } from '@effect/schema';
 import * as Sql from '@effect/sql';
 
-import { AssignedTodo, Todo, User } from './model';
 import {
-  decodeTodoArray,
   generateId,
   generateTimestamp,
-  saveTodo,
-  saveUser,
-} from './services';
-import {
-  assignTodo,
   lookupTodoStatus,
-  markDoneTodo,
+  saveTodo,
   saveTodoStatus,
-} from './todo-status';
-import { someOrFail } from './lib/common';
+  saveUser,
+} from '../services/services';
+import { assignTodo, markDoneTodo } from '../core/todo-status';
+import { someOrFail } from '../lib/common';
 import { HttpError } from 'effect-http';
+import { Todo, User } from '../core';
 
 export interface CreateTodoCommand {
   title: string;
@@ -35,10 +31,7 @@ export function handleCreateTodoCommand(command: CreateTodoCommand) {
       assignedTo: '',
     });
     yield* _(saveTodo(todo));
-    return {
-      todo,
-      message: 'Todo created',
-    };
+    return todo;
   });
 }
 
@@ -113,6 +106,16 @@ export function handleAssignTodoCommand(command: AssignTodoCommand) {
 export interface GetTodoByIdQueryHandler {
   todoId: string;
 }
+
+export class AssignedTodo extends Schema.Class<AssignedTodo>('AssignedTodo')({
+  todoId: Schema.String,
+  timestamp: Schema.Date,
+  title: Schema.String,
+  isDone: Schema.Boolean,
+  assignedToId: Schema.NullOr(Schema.String),
+  assignedToName: Schema.NullOr(Schema.String),
+}) {}
+
 export const decodeAssignedTodoArray = Schema.decodeUnknown(
   Schema.Array(AssignedTodo)
 );
@@ -138,6 +141,6 @@ export function handleGetTodoByIdQueryHandler(
       `
     );
     const assignedTodo = yield* _(decodeAssignedTodoArray(raw));
-    return Array.head(assignedTodo);
+    return yield* _(Array.head(assignedTodo));
   });
 }

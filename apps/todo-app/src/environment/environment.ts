@@ -2,28 +2,29 @@ import { Config, ConfigProvider, Context, Effect } from 'effect';
 import { NodeServer } from 'effect-http-node';
 import { Middlewares, RouterBuilder, HttpError } from 'effect-http';
 
-import { ApiRoutes } from '../api';
-import { Todo, User } from '../model';
+import { ApiRoutes } from '../api/api';
 import {
-  lookupTodo,
   listTodos,
   ShortUniqueIdGeneratorLive,
   TimestampGeneratorLive,
   lookupUser,
   listUsers,
-  PgLive,
-  SqlUserPersistence,
-  SqlTodoPersistence,
-} from '../services';
+} from '../services/services';
 import { someOrFail } from '../lib/common';
-import { SqlTodoStatusRepository } from '../todo-status';
 import {
   handleAssignTodoCommand,
   handleCreateTodoCommand,
   handleCreateUserCommand,
   handleGetTodoByIdQueryHandler,
   handleMarkDoneTodoCommand,
-} from '../use-cases';
+} from '../use-cases/use-cases';
+import {
+  PgLive,
+  SqlTodoPersistence,
+  SqlTodoStatusRepository,
+  SqlUserPersistence,
+} from '../infra';
+import { User } from '../core';
 
 const appConfig = Config.all({
   port: Config.number('PORT').pipe(Config.withDefault(3000)),
@@ -45,13 +46,20 @@ const AppConfig = Context.GenericTag<AppConfig>('app-config');
 const ApiApp = ApiRoutes.pipe(
   RouterBuilder.make,
   RouterBuilder.handle('createTodo', ({ body }) =>
-    handleCreateTodoCommand({ title: body.title })
+    handleCreateTodoCommand({ title: body.title }).pipe(
+      Effect.map((todo) => ({
+        message: 'Todo created',
+        todo,
+      }))
+    )
   ),
   RouterBuilder.handle('lookupTodo', ({ path }) =>
     handleGetTodoByIdQueryHandler({
       todoId: path.todoId,
     }).pipe(
-      someOrFail(() => HttpError.notFoundError({ message: 'Todo not found' })),
+      Effect.catchTag('NoSuchElementException', () =>
+        Effect.fail(HttpError.notFoundError())
+      ),
       Effect.map((assignedTodo) => ({ todo: assignedTodo }))
     )
   ),

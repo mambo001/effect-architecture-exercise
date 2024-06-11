@@ -1,128 +1,36 @@
-import {
-  Config,
-  Context,
-  Data,
-  Effect,
-  Layer,
-  Option,
-  pipe,
-  Array,
-  String,
-} from 'effect';
+import { Effect, Layer, Option, Array, Config, String } from 'effect';
+import { Schema } from '@effect/schema';
 import * as Sql from '@effect/sql';
-import * as Pg from '@effect/sql-pg';
-import ShortUniqueId from 'short-unique-id';
-
-import { ParseResult, Schema } from '@effect/schema';
-
-import { Todo, User } from './model';
-import { SqlError } from '@effect/sql/Error';
 import { PgClientConfig } from '@effect/sql-pg/Client';
+import * as Pg from '@effect/sql-pg';
 
-export class TodoPersistenceError extends Data.TaggedError(
-  'TodoPersistenceError'
-)<{
-  raw: unknown;
-}> {}
+import {
+  TodoAssigned,
+  TodoDone,
+  TodoNotAssigned,
+  TodoStatus,
+} from '../core/todo-status';
+import { Todo, User } from '../core';
+import {
+  TodoPersistence,
+  TodoStatusRepository,
+  UserPersistence,
+} from '../services/services';
 
-export interface TodoPersistence {
-  save: (
-    todo: Todo
-  ) => Effect.Effect<
-    void,
-    ParseResult.ParseError | TodoPersistenceError | SqlError,
-    IdGenerator | TimestampGenerator
-  >;
-  lookup: (
-    todoId: string | number
-  ) => Effect.Effect<
-    Option.Option<Todo>,
-    ParseResult.ParseError | TodoPersistenceError | SqlError
-  >;
-  list: Effect.Effect<
-    ReadonlyArray<Todo>,
-    ParseResult.ParseError | TodoPersistenceError | SqlError
-  >;
+export function makeDBRow(todoStatus: TodoStatus): DBRow {
+  switch (todoStatus._tag) {
+    case 'TodoNotAssigned':
+      return { id: todoStatus.id, assignedTo: '', isDone: false };
+    case 'TodoAssigned':
+      return {
+        id: todoStatus.id,
+        assignedTo: todoStatus.userId,
+        isDone: false,
+      };
+    case 'TodoDone':
+      return { id: todoStatus.id, assignedTo: todoStatus.userId, isDone: true };
+  }
 }
-
-export const TodoPersistence = Context.GenericTag<TodoPersistence>('todo');
-
-export const { save: saveTodo, lookup: lookupTodo } =
-  Effect.serviceFunctions(TodoPersistence);
-export const { list: listTodos } = Effect.serviceConstants(TodoPersistence);
-
-export class UserPersistenceError extends Data.TaggedError(
-  'UserPersistenceError'
-)<{
-  raw: unknown;
-}> {}
-
-export interface UserPersistence {
-  save: (
-    user: User
-  ) => Effect.Effect<
-    void,
-    ParseResult.ParseError | UserPersistenceError | SqlError,
-    IdGenerator | TimestampGenerator
-  >;
-  lookup: (
-    userId: string | number
-  ) => Effect.Effect<
-    Option.Option<User>,
-    ParseResult.ParseError | UserPersistenceError | SqlError
-  >;
-  list: Effect.Effect<
-    ReadonlyArray<User>,
-    ParseResult.ParseError | UserPersistenceError | SqlError
-  >;
-}
-
-export const UserPersistence = Context.GenericTag<UserPersistence>('user');
-
-export const { save: saveUser, lookup: lookupUser } =
-  Effect.serviceFunctions(UserPersistence);
-export const { list: listUsers } = Effect.serviceConstants(UserPersistence);
-
-export interface IdGenerator {
-  generate: Effect.Effect<string>;
-}
-
-export const IdGenerator = Context.GenericTag<IdGenerator>(
-  'core/services/id-generator'
-);
-
-export const { generate: generateId } = Effect.serviceConstants(IdGenerator);
-
-export interface TimestampGenerator {
-  generate: Effect.Effect<Date>;
-}
-
-function makeId(): IdGenerator {
-  const id = new ShortUniqueId({ length: 6 });
-  return {
-    generate: Effect.sync(() => id.randomUUID(10)),
-  };
-}
-
-export const ShortUniqueIdGeneratorLive = Layer.sync(IdGenerator, makeId);
-
-export const TimestampGenerator = Context.GenericTag<TimestampGenerator>(
-  'core/services/timestamp-generator'
-);
-
-export const { generate: generateTimestamp } =
-  Effect.serviceConstants(TimestampGenerator);
-
-export function makeTimestamp(): TimestampGenerator {
-  return {
-    generate: Effect.sync(() => new Date()),
-  };
-}
-
-export const TimestampGeneratorLive = Layer.sync(
-  TimestampGenerator,
-  makeTimestamp
-);
 
 export type PgLiveConfig = Pick<
   PgClientConfig,
@@ -137,6 +45,64 @@ export const PgLive = (config: PgLiveConfig) =>
     transformQueryNames: Config.succeed(String.camelToSnake),
     transformResultNames: Config.succeed(String.snakeToCamel),
   });
+
+export type DBRow = Schema.Schema.Type<typeof DBRow>;
+
+export const DBRow = Schema.Struct({
+  id: Schema.String,
+  assignedTo: Schema.NullOr(Schema.String),
+  isDone: Schema.Boolean,
+});
+
+function makeTodoStatus(todo: DBRow): TodoStatus {
+  if (!todo.assignedTo || todo.assignedTo === null) {
+    return new TodoNotAssigned({ id: todo.id });
+  }
+  if (!todo.isDone) {
+    return new TodoAssigned({
+      id: todo.id,
+      userId: todo.assignedTo,
+    });
+  }
+  return new TodoDone({ id: todo.id, userId: todo.assignedTo });
+}
+
+export const decodeDBRowArray = Schema.decodeUnknown(Schema.Array(DBRow));
+export const SqlTodoStatusRepository = Sql.client.Client.pipe(
+  Effect.map(
+    (client): TodoStatusRepository => ({
+      save: (todoStatus) =>
+        Effect.gen(function* (_) {
+          const row = makeDBRow(todoStatus);
+          yield* _(
+            client`
+                UPDATE todos
+                SET assigned_to = ${row.assignedTo},
+                is_done = ${row.isDone}
+                WHERE todos.id = ${todoStatus.id}
+              `
+          );
+          yield* _(Effect.log(`${todoStatus.id} is saved!`));
+        }),
+      lookup: (todoId) =>
+        Effect.gen(function* (_) {
+          const raw = yield* _(
+            client`
+                  SELECT
+                    id,
+                    is_done,
+                    assigned_to
+                  FROM todos
+                  WHERE todos.id = ${todoId}
+                `
+          );
+          const todos = yield* _(decodeDBRowArray(raw));
+          return Array.head(todos).pipe(Option.map(makeTodoStatus));
+        }),
+    })
+  ),
+  Layer.effect(TodoStatusRepository)
+);
 
 export const encodeUser = Schema.encode(User);
 export const decodeUserArray = Schema.decodeUnknown(Schema.Array(User));
